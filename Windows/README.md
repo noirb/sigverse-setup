@@ -2,7 +2,7 @@
 =============
 
 ## Overview
-The scripts here will set up and configure the dependencies necessary to build and run [SIGViewer](https://github.com/noirb/sigverse-SIGViewer) and, optionally, many of the [exampled Plugins](https://github.com/noirb/sigverse-plugin).
+The scripts here will set up and configure the dependencies necessary to build and run [SIGViewer](https://github.com/noirb/sigverse-SIGViewer) and, optionally, many of the [example Plugins](https://github.com/noirb/sigverse-plugin).
 
 ## Dependencies
 Before you begin you must install and configure the following:
