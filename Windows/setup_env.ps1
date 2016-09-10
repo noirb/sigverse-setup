@@ -36,6 +36,7 @@ $build_vars = @{
     "SIGSERVICE_ROOT_PATH" = "";
     "BOOST_ROOT"           = "";
     "LIBOVR_ROOT_PATH"     = "";
+    "OPENVR_ROOT_PATH"     = "";
     "VS_TOOLS_PATH"        = "";
 }
 
@@ -236,6 +237,7 @@ $libSSH2_www    = "https://www.libssh2.org/download/libssh2-1.7.0.tar.gz"
 $openSSL_www    = "http://noirbear.com/tools/openssl-0.9.8k_WIN32.zip"
 $boost_www      = "http://downloads.sourceforge.net/project/boost/boost/1.61.0/boost_1_61_0.zip"
 $libovr_www     = "https://static.oculus.com/sdk-downloads/1.7.0/Public/1470946240/ovr_sdk_win_1.7.0_public.zip"
+$openvr_www     = "https://github.com/ValveSoftware/openvr/archive/master.zip"
 $glew_www       = "http://downloads.sourceforge.net/project/glew/glew/2.0.0/glew-2.0.0-win32.zip"
 
     # OPTIONAL DEPENDENCIES (used by plugins)
@@ -286,6 +288,44 @@ function doClone
         echo "Cloning $url into: $destDir..."
         iex "& '$git' clone --recursive $url $destDir"
     }
+}
+
+function doExtract
+{
+    param( [string]$file, [string]$destDir, [string]$unzip )
+
+    Write-Host "Extracting '$file' into '$destDir' ..."
+    $resultFile = 'none'
+    if (!(Test-Path $destDir) )
+    {
+        new-item $destDir -type directory
+    }
+
+    $dir_contents = Get-ChildItem($destDir) | Select-Object FullName
+
+    iex "$unzip -o$destDir $file" | Out-Null
+    
+    $new_dir_contents = Get-ChildItem($destDir) | Select-Object FullName
+
+    foreach ($item in ($new_dir_contents)) {
+        $match_found = $False
+        foreach ($olditem in ($dir_contents)) {
+            if ( $olditem.FullName -eq $item.FullName ) {
+                $match_found = $True
+                break;
+            }
+        }
+        
+        if ($match_found) {
+            continue
+        }
+        else {
+            $resultFile = $item.FullName
+            break;
+        }
+    }
+    
+    return $resultFile
 }
 
 # check for existing code
@@ -389,6 +429,15 @@ foreach ($item in (dir $projectDepsRoot)) {
             remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
         }
     }
+    elseif ($item.Name.ToLower() -like "*openvr*") {
+        echo "Existing directory found: $($item.Name)"
+        $conf = Read-Host -prompt "Should this be used as-is as the OpenVR SDK directory? (y/n)"
+        if (($conf.ToLower().StartsWith("y"))) {
+            $build_vars.Set_Item("OPENVR_ROOT_PATH", "$projectDepsRoot\$($item.Name)")
+        } else {
+            remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
+        }
+    }
     elseif ($item.Name.ToLower() -like "*glew*") {
         echo "Existing directory found: $($item.Name)"
         $conf = Read-Host -prompt "Should this be used as-is as the GLEW root directory? (y/n)"
@@ -443,6 +492,7 @@ doDownload -url $libSSH2_www    -destFile $libSSH2_www.Substring($libSSH2_www.La
 doDownload -url $openSSL_www    -destFile $openSSL_www.Substring($openSSL_www.LastIndexOf("/") + 1)       -destDir $tmp_dir -wc $net
 doDownload -url $boost_www      -destFile $boost_www.Substring($boost_www.LastIndexOf("/") + 1)           -destDir $tmp_dir -wc $net
 doDownload -url $libovr_www     -destFile $libovr_www.Substring($libovr_www.LastIndexOf("/") + 1)         -destDir $tmp_dir -wc $net
+doDownload -url $openvr_www     -destFile "openvr_sdk.zip"                                                -destDir $tmp_dir -wc $net
 doDownload -url $glew_www       -destFile $glew_www.Substring($glew_www.LastIndexOf("/") + 1)             -destDir $tmp_dir -wc $net
 
 # only download Ogre if we're using VS 2012 or earlier
@@ -469,72 +519,79 @@ if ($setup -eq 'complete') {
 
 # extract archives for any code not found above
 if (!($build_vars.Get_Item("SIGSERVICE_ROOT_PATH"))) {
-    iex "$7zX -o$projectRoot $tmp_dir\sigservice.zip"
-    $build_vars.Set_Item("SIGSERVICE_ROOT_PATH", "$projectRoot\sigverse-SIGService-master")
+    $path_result = doExtract -file $tmp_dir\sigservice.zip -destDir $projectRoot -unzip $7zX
+    $build_vars.Set_Item("SIGSERVICE_ROOT_PATH", $path_result)
 }
 
 if (!($build_vars.Get_Item("X3D_ROOT_PATH"))) {
-    iex "$7zX -o$projectRoot $tmp_dir\x3d.zip"
-    $build_vars.Set_Item("X3D_ROOT_PATH", "$projectRoot\sigverse-x3d-master")
+    $path_result = doExtract -file $tmp_dir\x3d.zip -destDir $projectRoot -unzip $7zX
+    $build_vars.Set_Item("X3D_ROOT_PATH", $path_result)
 }
 
 if (!($build_vars.Get_Item("OGRE_SDK"))) {
-    iex "$tmp_dir\$($Ogre_SDK_www.Substring($Ogre_SDK_www.LastIndexOf(""/"") + 1)) -o$projectDepsRoot -y"
-    $build_vars.Set_Item("OGRE_SDK", "$projectDepsRoot\OgreSDK_vc11_v1-9-0")
+    $path_result = doExtract -file $tmp_dir\($Ogre_SDK_www.Substring($Ogre_SDK_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("OGRE_SDK", $path_result)
 }
 
 if (!($build_vars.Get_Item("CEGUI_ROOT_PATH"))) {
-    iex "$7zX -o$projectDepsRoot $tmp_dir\$($CEGUI_www.Substring($CEGUI_www.LastIndexOf(""/"") + 1))"
-    $build_vars.Set_Item("CEGUI_ROOT_PATH", "$projectDepsRoot\cegui-0.8.7")
+    $path_result = doExtract -file $tmp_dir\$($CEGUI_www.Substring($CEGUI_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("CEGUI_ROOT_PATH", $path_result)
 }
 
 if (!($build_vars.Get_Item("CEGUI_DEPS_ROOT"))) {
-    iex "$7zX -o$projectDepsRoot $tmp_dir\$($CEGUI_deps_www.Substring($CEGUI_deps_www.LastIndexOf(""/"") + 1))"
-    $build_vars.Set_Item("CEGUI_DEPS_ROOT", "$projectDepsRoot\cegui-deps-0.8.x-src")
+    $path_result = doExtract -file $tmp_dir\$($CEGUI_deps_www.Substring($CEGUI_deps_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("CEGUI_DEPS_ROOT", $path_result)
 }
 
 if (!($build_vars.Get_Item("GLEW_ROOT_PATH"))) {
-    iex "$7zX -o$projectDepsRoot $tmp_dir\$($glew_www.Substring($glew_www.LastIndexOf(""/"") + 1))"
-    $build_vars.Set_Item("GLEW_ROOT_PATH", "$projectDepsRoot\glew-2.0.0")
+    $path_result = doExtract -file $tmp_dir\$($glew_www.Substring($glew_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("GLEW_ROOT_PATH", $path_result)
 }
 
 if (!($build_vars.Get_Item("LIBSSH2_ROOT_PATH"))) {
-    iex "$7zX -o$tmp_dir $tmp_dir\$($libSSH2_www.Substring($libSSH2_www.LastIndexOf(""/"") + 1))"
-    iex "$7zX -o$projectDepsRoot $tmp_dir\libssh2-1.7.0.tar"
-    $build_vars.Set_Item("LIBSSH2_ROOT_PATH", "$projectDepsRoot\libssh2-1.7.0")
+    $path_result = doExtract -file $tmp_dir\$($libSSH2_www.Substring($libSSH2_www.LastIndexOf("/") + 1)) -destDir $tmp_dir -unzip $7zX
+    $path_result = doExtract -file $path_result -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("LIBSSH2_ROOT_PATH", $path_result)
 }
 
 if (!($build_vars.Get_Item("OPENSSL_ROOT_DIR"))) {
     $filename = "$($openSSL_www.Substring($openSSL_www.LastIndexOf(""/"") + 1))"
-    iex "$7zX -o$projectDepsRoot\$($filename.substring(0, $filename.length-4)) $tmp_dir\$filename"
-    $build_vars.Set_Item("OPENSSL_ROOT_DIR", "$projectDepsRoot\openssl-0.9.8k_WIN32")
+    $dirname = $filename.substring(0, $filename.length-4)
+    $path_result = doExtract -file $tmp_dir\$filename -destDir $projectDepsRoot\$dirname -unzip $7zX
+    $build_vars.Set_Item("OPENSSL_ROOT_DIR", "$projectDepsRoot\$dirname")
 }
 
 if (!($build_vars.Get_Item("BOOST_ROOT"))) {
-    iex "$7zX -o$projectDepsRoot $tmp_dir\$($boost_www.Substring($boost_www.LastIndexOf(""/"") + 1))"
-    $build_vars.Set_Item("BOOST_ROOT", "$projectDepsRoot\boost_1_61_0")
+    $path_result = doExtract -file $tmp_dir\$($boost_www.Substring($boost_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    Write-Host "Extracted $boost_dir"
+    $build_vars.Set_Item("BOOST_ROOT", $path_result)
 }
 
 if (!($build_vars.Get_Item("LIBOVR_ROOT_PATH"))) {
-    iex "$7zX -o$projectDepsRoot $tmp_dir\$($libovr_www.Substring($libovr_www.LastIndexOf(""/"") + 1))"
-    $build_vars.Set_Item("LIBOVR_ROOT_PATH", "$projectDepsRoot\OculusSDK\LibOVR")
+    $path_result = doExtract -file $tmp_dir\$($libovr_www.Substring($libovr_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("LIBOVR_ROOT_PATH", "$path_result\LibOVR")
+}
+
+if (!($build_vars.Get_Item("OPENVR_ROOT_PATH"))) {
+    $path_result = doExtract -file "$tmp_dir\openvr_sdk.zip" -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("OPENVR_ROOT_PATH", $path_result)
 }
 
 # Extra dependencies for complete build
 if ($setup -eq 'complete') {
     if (!($build_vars.Get_Item("PLUGIN_ROOT_PATH"))) {
-        iex "$7zX -o$projectRoot $tmp_dir\sigPlugin.zip"
-        $build_vars.Set_Item("PLUGIN_ROOT_PATH", "$projectRoot\sigverse-plugin-master")
+        $path_result = doExtract -file "$tmp_dir\sigPlugin.zip" -destDir $projectRoot -unzip $7zX
+        $build_vars.Set_Item("PLUGIN_ROOT_PATH", $path_result)
     }
 
     if (!($build_vars.Get_Item("OPENCV_ROOT"))) {
-        iex "$tmp_dir\$($opencv_www.Substring($opencv_www.LastIndexOf(""/"") +1)) -o$projectDepsRoot -y"
-        $build_vars.Set_Item("OPENCV_ROOT", "$projectDepsRoot\opencv")
+        $path_result = doExtract -file $tmp_dir\$($opencv_www.Substring($opencv_www.LastIndexOf("/") +1)) -destDir $projectDepsRoot -unzip $7zX
+        $build_vars.Set_Item("OPENCV_ROOT", $path_result)
     }
     
     if (!($build_vars.Get_Item("NEURON_SDK_ROOT"))) {
-        iex "$7zX -o$projectDepsRoot $tmp_dir\$($neuron_sdk_www.Substring($neuron_sdk_www.LastIndexOf(""/"") + 1))"
-        $build_vars.Set_Item("NEURON_SDK_ROOT", "$projectDepsRoot\NeuronDataReader SDK b15")
+        $path_result = doExtract -file $tmp_dir\$($neuron_sdk_www.Substring($neuron_sdk_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+        $build_vars.Set_Item("NEURON_SDK_ROOT", $path_result)
     }
 }
 
@@ -587,6 +644,7 @@ ac $dev_script "set SIGBUILD_CEGUI_INC=$($build_vars.Get_Item(""CEGUI_ROOT_PATH"
 ac $dev_script "set SIGBUILD_LIBSSH2_INC=$($build_vars.Get_Item(""LIBSSH2_ROOT_PATH""))\include"
 ac $dev_script "set SIGBUILD_OPENSSL_INC=$($build_vars.Get_Item(""OPENSSL_ROOT_DIR""))\include"
 ac $dev_script "set SIGBUILD_LIBOVR_INC=$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\Include;$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\LibOVRKernel\Src"
+ac $dev_script "set SIGBUILD_OPENVR_INC=$($build_vars.Get_Item(""OPENVR_ROOT_PATH""))\headers"
 
 if ($setup -eq 'complete') {
     ac $dev_script "set SIGBUILD_NEURONDATAREADER_INC=$($build_vars.Get_Item(""NEURON_SDK_ROOT""))\Windows\include"
@@ -603,6 +661,7 @@ ac $dev_script "set SIGBUILD_LIBSSH2_LIB=$($build_vars.Get_Item(""LIBSSH2_ROOT_P
 ac $dev_script "set SIGBUILD_OPENSSL_LIB=$($build_vars.Get_Item(""OPENSSL_ROOT_DIR""))\lib"
 ac $dev_script "set SIGBUILD_ZLIB_LIB=$($build_vars.Get_Item(""CEGUI_ROOT_PATH""))\dependencies\lib\static"
 ac $dev_script "set SIGBUILD_LIBOVR_LIB=$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\Lib\Windows\Win32\Release\VS2015"
+ac $dev_script "set SIGBUILD_OPENVR_LIB=$($build_vars.Get_Item(""OPENVR_ROOT_PATH""))\lib\win32"
 ac $dev_script "set SIGBUILD_GLEW_LIB=$($build_vars.Get_Item(""GLEW_ROOT_PATH""))\lib\Release\Win32"
 
 if ($setup -eq 'complete') {
