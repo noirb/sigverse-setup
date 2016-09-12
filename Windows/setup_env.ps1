@@ -679,6 +679,19 @@ ac $dev_script 'exit /B 1'
 
 ac $dev_script ':end'
 
+ac $dev_script "      __        __         _"
+ac $dev_script "      \\ \\      / /   ___  ^| ^|   ___    ___    _ __ ___     ___"
+ac $dev_script "       \\ \\ /\\ / /   / _ \\ ^| ^|  / __^|  / _ \\  ^| '_ ` _ \\   / _ \\"
+ac $dev_script "        \\ V  V /   ^|  __/ ^| ^| ^| (__  ^| (_) ^| ^| ^| ^| ^| ^| ^| ^|  __/"
+ac $dev_script "         \\_/\\_/     \\___^| ^|_^|  \\___^|  \\___/  ^|_^| ^|_^| ^|_^|  \\___^|"
+ac $dev_script "   _               ____    ___    ____  __     __"
+ac $dev_script "  ^| ^|_    ___     / ___^|  ^|_ _^|  / ___^| \\ \\   / /   ___   _ __   ___    ___"
+ac $dev_script "  ^| __^|  / _ \\    \___ \\   ^| ^|  ^| ^|  _   \\ \\ / /   / _ \\ ^| '__^| / __^|  / _ \\"
+ac $dev_script "  ^| ^|_  ^| (_) ^|    ___) ^|  ^| ^|  ^| ^|_^| ^|   \\ V /   ^|  __/ ^| ^|    \\__ \\ ^|  __/"
+ac $dev_script "   \__^|  \\___/    ^|____/  ^|___^|  \\____^|    \\_/     \\___^| ^|_^|    ^|___/  \\___^|"
+ac $dev_script "echo."
+ac $dev_script "echo."
+
 # make shortcut to setenv.bat
 $WScriptShell = New-Object -ComObject WScript.Shell
 $dev_script_shortcut = $WScriptShell.CreateShortcut("$projectRoot\SIGVerse_x86_Release.lnk")
