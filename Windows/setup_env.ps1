@@ -35,6 +35,8 @@ $build_vars = @{
     "X3D_ROOT_PATH"        = "";
     "SIGSERVICE_ROOT_PATH" = "";
     "BOOST_ROOT"           = "";
+    "FFMPEG_DEV_ROOT"      = "";
+    "FFMPEG_SHARED_ROOT"   = "";
     "LIBOVR_ROOT_PATH"     = "";
     "OPENVR_ROOT_PATH"     = "";
     "VS_TOOLS_PATH"        = "";
@@ -59,16 +61,16 @@ $vsVersionNames = @{
 $vsEnvVars = @()
 
 foreach ($item in (dir Env:)) {
-	if ($item.name -Match "VS[0-9]{1,3}COMNTOOLS") {
-		$vsEnvVars = $vsEnvVars + $item
-	}
+    if ($item.name -Match "VS[0-9]{1,3}COMNTOOLS") {
+        $vsEnvVars = $vsEnvVars + $item
+    }
 }
 
 # If no VS installation was found, bail
 if ($vsEnvVars.length -eq 0) {
-	echo 'No valid Version of Visual Studio was detected! Please ensure you have VS 2010 or later installed!'
-	echo 'Exiting...'
-	exit
+    echo 'No valid Version of Visual Studio was detected! Please ensure you have VS 2010 or later installed!'
+    echo 'Exiting...'
+    exit
 }
 
 echo 'Found the following Visual Studio installations:'
@@ -239,6 +241,8 @@ $boost_www      = "http://downloads.sourceforge.net/project/boost/boost/1.61.0/b
 $libovr_www     = "https://static.oculus.com/sdk-downloads/1.7.0/Public/1470946240/ovr_sdk_win_1.7.0_public.zip"
 $openvr_www     = "https://github.com/ValveSoftware/openvr/archive/master.zip"
 $glew_www       = "http://downloads.sourceforge.net/project/glew/glew/2.0.0/glew-2.0.0-win32.zip"
+$ffmpeg_sha_www = "https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-20160912-bc7066f-win32-shared.zip"
+$ffmpeg_dev_www = "https://ffmpeg.zeranoe.com/builds/win32/dev/ffmpeg-20160912-bc7066f-win32-dev.zip"
 
     # OPTIONAL DEPENDENCIES (used by plugins)
 $opencv_www     = "http://downloads.sourceforge.net/project/opencvlibrary/opencv-win/2.4.13/opencv-2.4.13.exe"
@@ -447,6 +451,24 @@ foreach ($item in (dir $projectDepsRoot)) {
             remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
         }
     }
+    elseif ($item.Name.ToLower() -like "*ffmpeg*dev*") {
+        echo "Existing directory found: $($item.Name)"
+        $conf = Read-Host -prompt "Should this be used as-is as the ffmeg-dev directory? (y/n)"
+        if (($conf.ToLower().StartsWith("y"))) {
+            $build_vars.Set_Item("FFMPEG_DEV_ROOT", "$projectDepsRoot\$($item.Name)")
+        } else {
+            remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
+        }
+    }
+    elseif ($item.Name.ToLower() -like "*ffmpeg*shared*") {
+        echo "Existing directory found: $($item.Name)"
+        $conf = Read-Host -prompt "Should this be used as-is as the ffmeg-shared directory? (y/n)"
+        if (($conf.ToLower().StartsWith("y"))) {
+            $build_vars.Set_Item("FFMPEG_SHARED_ROOT", "$projectDepsRoot\$($item.Name)")
+        } else {
+            remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
+        }
+    }
     elseif (($setup -eq 'complete') -and ($item.Name.ToLower() -like "*opencv*")) {
         echo "Existing directory found: $($item.Name)"
         $conf = Read-Host -prompt "Should this be used as-is as the OpenCV source directory? (y/n)"
@@ -494,6 +516,8 @@ doDownload -url $boost_www      -destFile $boost_www.Substring($boost_www.LastIn
 doDownload -url $libovr_www     -destFile $libovr_www.Substring($libovr_www.LastIndexOf("/") + 1)         -destDir $tmp_dir -wc $net
 doDownload -url $openvr_www     -destFile "openvr_sdk.zip"                                                -destDir $tmp_dir -wc $net
 doDownload -url $glew_www       -destFile $glew_www.Substring($glew_www.LastIndexOf("/") + 1)             -destDir $tmp_dir -wc $net
+doDownload -url $ffmpeg_sha_www -destFile $ffmpeg_sha_www.Substring($ffmpeg_sha_www.LastIndexOf("/") + 1) -destDir $tmp_dir -wc $net
+doDownload -url $ffmpeg_dev_www -destFile $ffmpeg_dev_www.Substring($ffmpeg_dev_www.LastIndexOf("/") + 1) -destDir $tmp_dir -wc $net
 
 # only download Ogre if we're using VS 2012 or earlier
 if ($vsVersion -eq "Visual Studio 10 2010" -Or $vsVersion -eq "Visual Studio 11 2012")
@@ -546,6 +570,16 @@ if (!($build_vars.Get_Item("CEGUI_DEPS_ROOT"))) {
 if (!($build_vars.Get_Item("GLEW_ROOT_PATH"))) {
     $path_result = doExtract -file $tmp_dir\$($glew_www.Substring($glew_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
     $build_vars.Set_Item("GLEW_ROOT_PATH", $path_result)
+}
+
+if (!($build_vars.Get_Item("FFMPEG_SHARED_ROOT"))) {
+    $path_result = doExtract -file $tmp_dir\$($ffmpeg_sha_www.Substring($ffmpeg_sha_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("FFMPEG_SHARED_ROOT", $path_result)
+}
+
+if (!($build_vars.Get_Item("FFMPEG_DEV_ROOT"))) {
+    $path_result = doExtract -file $tmp_dir\$($ffmpeg_dev_www.Substring($ffmpeg_dev_www.LastIndexOf("/") + 1)) -destDir $projectDepsRoot -unzip $7zX
+    $build_vars.Set_Item("FFMPEG_DEV_ROOT", $path_result)
 }
 
 if (!($build_vars.Get_Item("LIBSSH2_ROOT_PATH"))) {
@@ -644,6 +678,7 @@ ac $dev_script "set SIGBUILD_BOOST_INC=$($build_vars.Get_Item(""BOOST_ROOT""))"
 ac $dev_script "set SIGBUILD_CEGUI_INC=$($build_vars.Get_Item(""CEGUI_ROOT_PATH""))\cegui\include"
 ac $dev_script "set SIGBUILD_LIBSSH2_INC=$($build_vars.Get_Item(""LIBSSH2_ROOT_PATH""))\include"
 ac $dev_script "set SIGBUILD_OPENSSL_INC=$($build_vars.Get_Item(""OPENSSL_ROOT_DIR""))\include"
+ac $dev_script "set SIGBUILD_FFMPEG_INC=$($build_vars.Get_Item(""FFMPEG_DEV_ROOT""))\include"
 ac $dev_script "set SIGBUILD_LIBOVR_INC=$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\Include;$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\LibOVRKernel\Src"
 ac $dev_script "set SIGBUILD_OPENVR_INC=$($build_vars.Get_Item(""OPENVR_ROOT_PATH""))\headers"
 
@@ -661,6 +696,8 @@ ac $dev_script "set SIGBUILD_CEGUI_LIB=$($build_vars.Get_Item(""CEGUI_ROOT_PATH"
 ac $dev_script "set SIGBUILD_LIBSSH2_LIB=$($build_vars.Get_Item(""LIBSSH2_ROOT_PATH""))\build\src\Release"
 ac $dev_script "set SIGBUILD_OPENSSL_LIB=$($build_vars.Get_Item(""OPENSSL_ROOT_DIR""))\lib"
 ac $dev_script "set SIGBUILD_ZLIB_LIB=$($build_vars.Get_Item(""CEGUI_ROOT_PATH""))\dependencies\lib\static"
+ac $dev_script "set SIGBUILD_FFMPEG_LIB=$($build_vars.Get_Item(""FFMPEG_DEV_ROOT""))\lib"
+ac $dev_script "set SIGBUILD_FFMPEG_SHARED=$($build_vars.Get_Item(""FFMPEG_SHARED_ROOT""))\bin"
 ac $dev_script "set SIGBUILD_LIBOVR_LIB=$($build_vars.Get_Item(""LIBOVR_ROOT_PATH""))\Lib\Windows\Win32\Release\VS2015"
 ac $dev_script "set SIGBUILD_OPENVR_LIB=$($build_vars.Get_Item(""OPENVR_ROOT_PATH""))\lib\win32"
 ac $dev_script "set SIGBUILD_GLEW_LIB=$($build_vars.Get_Item(""GLEW_ROOT_PATH""))\lib\Release\Win32"
@@ -679,16 +716,16 @@ ac $dev_script 'exit /B 1'
 
 ac $dev_script ':end'
 
-ac $dev_script "      __        __         _"
-ac $dev_script "      \\ \\      / /   ___  ^| ^|   ___    ___    _ __ ___     ___"
-ac $dev_script "       \\ \\ /\\ / /   / _ \\ ^| ^|  / __^|  / _ \\  ^| '_ ` _ \\   / _ \\"
-ac $dev_script "        \\ V  V /   ^|  __/ ^| ^| ^| (__  ^| (_) ^| ^| ^| ^| ^| ^| ^| ^|  __/"
-ac $dev_script "         \\_/\\_/     \\___^| ^|_^|  \\___^|  \\___/  ^|_^| ^|_^| ^|_^|  \\___^|"
-ac $dev_script "   _               ____    ___    ____  __     __"
-ac $dev_script "  ^| ^|_    ___     / ___^|  ^|_ _^|  / ___^| \\ \\   / /   ___   _ __   ___    ___"
-ac $dev_script "  ^| __^|  / _ \\    \___ \\   ^| ^|  ^| ^|  _   \\ \\ / /   / _ \\ ^| '__^| / __^|  / _ \\"
-ac $dev_script "  ^| ^|_  ^| (_) ^|    ___) ^|  ^| ^|  ^| ^|_^| ^|   \\ V /   ^|  __/ ^| ^|    \\__ \\ ^|  __/"
-ac $dev_script "   \__^|  \\___/    ^|____/  ^|___^|  \\____^|    \\_/     \\___^| ^|_^|    ^|___/  \\___^|"
+ac $dev_script "echo      __        __         _"
+ac $dev_script "echo      \ \      / /   ___  ^| ^|   ___    ___    _ __ ___     ___"
+ac $dev_script "echo       \ \ /\ / /   / _ \ ^| ^|  / __^|  / _ \  ^| '_ \` _ \   / _ \"
+ac $dev_script "echo        \ V  V /   ^|  __/ ^| ^| ^| (__  ^| (_) ^| ^| ^| ^| ^| ^| ^| ^|  __/"
+ac $dev_script "echo         \_/\_/     \___^| ^|_^|  \___^|  \___/  ^|_^| ^|_^| ^|_^|  \___^|"
+ac $dev_script "echo   _               ____    ___    ____  __     __"
+ac $dev_script "echo  ^| ^|_    ___     / ___^|  ^|_ _^|  / ___^| \ \   / /   ___   _ __   ___    ___"
+ac $dev_script "echo  ^| __^|  / _ \    \___ \   ^| ^|  ^| ^|  _   \ \ / /   / _ \ ^| '__^| / __^|  / _ \"
+ac $dev_script "echo  ^| ^|_  ^| (_) ^|    ___) ^|  ^| ^|  ^| ^|_^| ^|   \ V /   ^|  __/ ^| ^|    \__ \ ^|  __/"
+ac $dev_script "echo   \__^|  \___/    ^|____/  ^|___^|  \____^|    \_/     \___^| ^|_^|    ^|___/  \___^|"
 ac $dev_script "echo."
 ac $dev_script "echo."
 
