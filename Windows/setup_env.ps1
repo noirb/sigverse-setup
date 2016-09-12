@@ -384,7 +384,7 @@ foreach ($item in (dir $projectDepsRoot)) {
             remove-item "$projectDepsRoot\$($item.Name)" -recurse -force
         }
     }
-    elseif ($item.Name.ToLower() -like "*cegui-deps*") {
+    elseif ($item.Name.ToLower() -like "*cegui-dep*") {
         echo "Existing directory found: $($item.Name)"
         $conf = Read-Host -prompt "Should this be used as-is as the CEGUI DEPS directory? (y/n)"
         if (($conf.ToLower().StartsWith("y"))) {
@@ -549,8 +549,9 @@ if (!($build_vars.Get_Item("GLEW_ROOT_PATH"))) {
 }
 
 if (!($build_vars.Get_Item("LIBSSH2_ROOT_PATH"))) {
-    $path_result = doExtract -file $tmp_dir\$($libSSH2_www.Substring($libSSH2_www.LastIndexOf("/") + 1)) -destDir $tmp_dir -unzip $7zX
-    $path_result = doExtract -file $path_result -destDir $projectDepsRoot -unzip $7zX
+    $tar_result = doExtract -file $tmp_dir\$($libSSH2_www.Substring($libSSH2_www.LastIndexOf("/") + 1)) -destDir $tmp_dir -unzip $7zX
+    $path_result = doExtract -file $tar_result -destDir $projectDepsRoot -unzip $7zX
+    remove-item $tar_result
     $build_vars.Set_Item("LIBSSH2_ROOT_PATH", $path_result)
 }
 
